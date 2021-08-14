@@ -1,0 +1,1 @@
+%windir%\System32\OpenSSH\ssh.exe -i "D:\Private Key\20201009 pem.pem" ubuntu@ec2-3-35-166-139.ap-northeast-2.compute.amazonaws.com

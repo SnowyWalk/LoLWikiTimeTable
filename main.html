@@ -1,0 +1,337 @@
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<script src="$_localhost/node_modules/socket.io/client-dist/socket.io.js"></script>
+
+		<script>
+			var socket = io()
+
+			socket.on('connect', function () {
+				console.log('connected')
+			})
+
+			socket.on('msg', function (msg) {
+				console.log('msg :', msg)
+			})
+
+			socket.on('nick_result', function(data) {
+				while(nick_result_list.firstChild)
+					nick_result_list.removeChild(nick_result_list.firstChild)
+
+				if(!data)
+				{
+					search_state.firstChild.nodeValue = '결과 없음'
+					return
+				}
+
+				data.map(e => {
+					var li = document.createElement('li')
+
+					var title = document.createElement('label')
+					title.classList.add('gap')
+					title.appendChild(document.createTextNode(format('{0}[{1}]', e.title, e.reply_cnt)))
+
+					var nickname = document.createElement('label')
+					nickname.classList.add('gap')
+					nickname.appendChild(document.createTextNode(e.nickname))
+
+					var android_id = document.createElement('label')
+					android_id.classList.add('gap')
+					android_id.appendChild(document.createTextNode(e.android_id))
+
+					li.appendChild(title)
+					li.appendChild(nickname)
+					li.appendChild(android_id)
+
+					nick_result_list.appendChild(li)
+					return null
+				})
+				search_state.firstChild.nodeValue = '완료'
+			})
+
+			const week = ['월', '화', '수', '목', '금', '토', '일']
+			socket.on('calc_result', async function(data) {
+				calc_state.firstChild.nodeValue = '테이블 생성중'
+
+				while(calendar_placeholder.firstChild)
+					calendar_placeholder.removeChild(calendar_placeholder.firstChild)
+
+				var current_year = 0
+				var current_month = 0
+				var current_table = null
+				var last_data = null
+				var last_client_top = 0
+
+				for(var e of data)
+				{
+					if(current_year != e.year || current_month != e.month)
+					{	
+						var h1_y = document.createElement('h1')
+						h1_y.appendChild(document.createTextNode(e.year))
+						h1_y.classList.add('margin')
+
+						var h1_m = document.createElement('h1')
+						h1_m.appendChild(document.createTextNode(e.month))
+
+						var table = document.createElement('table')
+						var tr = document.createElement('tr')
+
+						// 요일 헤더
+						for(var i=0; i<7; ++i)
+						{
+							var td = document.createElement('td')
+							td.classList.add('header')
+							td.appendChild(document.createTextNode(week[i]))
+							tr.appendChild(td)
+						}
+						table.appendChild(tr)
+
+						// 달력만들기
+						var start_week_index = (new Date(e.year,e.month-1,1).getDay() + 6) % 7
+						var day_of_month = getDayOfMonth(e.year, e.month)
+						var calendar_row_count = Math.ceil((day_of_month + start_week_index) / 7)
+						for(var i=0; i<calendar_row_count; ++i)
+						{
+							tr = document.createElement('tr')
+							for(var j=0; j<7; ++j)
+							{
+								var td = document.createElement('td')
+								var label = document.createElement('label')
+								label.appendChild(document.createTextNode(''))
+								td.appendChild(label)
+								var line = document.createElement('line')
+								line.classList.add('noon')
+								td.appendChild(line)
+								tr.appendChild(td)
+							}
+							table.appendChild(tr)
+						}
+
+						calendar_placeholder.appendChild(h1_y)
+						calendar_placeholder.appendChild(h1_m)
+						calendar_placeholder.appendChild(table)
+						table.createCaption()
+						table.caption.textContent = '01234568789-:*'
+						table.setAttribute('year', e.year)
+						table.setAttribute('month', e.month)
+
+						// 숫자 부여
+						for(var i=0; i<day_of_month; ++i)
+						{
+							var cur_row = Math.floor((i + start_week_index) / 7)
+							var cur_col = (i + start_week_index) % 7
+							var dest_element = table.querySelector(format('tr:nth-of-type({0}) > td:nth-of-type({1})', cur_row + 2, cur_col + 1))
+							dest_element.setAttribute('day', i+1)
+							// dest_element.setAttribute('row', cur_row)
+							// dest_element.setAttribute('col', cur_col)
+							dest_element.querySelector('label').firstChild.nodeValue = i + 1
+						}
+
+						current_table = table
+					}
+
+					// 라인 긋기
+					var dest_element = current_table.querySelector(format('[day="{0}"]', eval(e.day)))
+					var dest_level = getLineLevel(eval(e.hh), eval(e.mm))
+					var client_top = last_client_top
+					// 추가된 이전 라인과 같은 높이면 진하게만 하기
+					if(last_data && last_data.year == e.year && last_data.month == e.month && last_data.day == e.day && getLineLevel(last_data.hh, last_data.mm) == dest_level)
+					{
+						var dest_line = dest_element.querySelector(format('line[level="{0}"]', dest_level))
+						var cnt = eval(dest_line.getAttribute('count'))
+						dest_line.style.borderColor = format('rgba(255, 0, 0, {0})', 0.2 * (cnt + 1))
+						line.setAttribute('count', cnt + 1)
+					}
+					else
+					{
+						var line = document.createElement('line')
+						line.setAttribute('level', dest_level)
+						line.setAttribute('count', 1)
+						var dest_row = Math.floor((e.day + start_week_index - 1) / 7)
+						if(last_data && last_data.year == e.year && last_data.month == e.month && dest_row == Math.floor((last_data.day + start_week_index - 1) / 7))
+						{
+							line.style.top = last_client_top + dest_level + 'px'
+						}
+						else
+						{
+							client_top = dest_element.getBoundingClientRect().top
+							line.style.top = client_top + dest_level + 'px'
+						}
+						line.onmouseenter = spec_line
+						dest_element.appendChild(line)
+					}
+
+					current_year = e.year 
+					current_month = e.month
+					current_day = e.day
+					last_data = e
+					last_client_top = client_top
+				}
+
+				calc_state.firstChild.nodeValue = '완료'
+			})
+
+			function spec_line()
+			{
+				var el = event.target
+				var table = el.parentElement.parentElement.parentElement
+
+				var level = eval(el.getAttribute('level'))
+				var count = eval(el.getAttribute('count'))
+				var year = eval(table.getAttribute('year'))
+				var month = eval(table.getAttribute('month'))
+				var day = eval(el.parentElement.firstChild.firstChild.nodeValue)
+				var start_h = Math.floor(level * 10 / 60)
+				var start_m = (level * 10) % 60
+				var end_h = Math.floor((level + 1) * 10 / 60)
+				var end_m = ((level + 1) * 10) % 60
+				table.caption.textContent = format('{0}-{1}-{2} {3}:{4} ~ {5}:{6} * {7}', year, month.toString().padStart(2, '0'), day.toString().padStart(2, '0'), start_h.toString().padStart(2, '0'), start_m.toString().padStart(2, '0'), end_h.toString().padStart(2, '0'), end_m.toString().padStart(2, '0'), count)
+			}
+
+			function getLineLevel(hour, minute)
+			{
+				return Math.floor((eval(hour) * 60 + eval(minute)) / 10)
+			}
+
+			function getDayOfMonth(year, month)
+			{
+				if(month == 2)
+					return isYoonYear(year) ? 29 : 28
+				if(month % 2 == 0)
+					return month <= 7 ? 30 : 31
+				return month <= 7 ? 31 : 30
+			}	
+
+			function isYoonYear(year) 
+			{
+				if(year % 400 == 0)
+					return true
+				if(year % 100 == 0)
+					return false
+				if(year % 4 == 0)
+					return true
+				return false
+			}
+
+			window.onload = function () {
+				
+				button_find_nick.onclick = find_nick
+				button_calc.onclick = calc
+
+			}
+
+			function find_nick() {
+				search_state.firstChild.nodeValue = '검색중'
+				socket.emit('nick', nick.value)
+			}
+
+			function calc() {
+				calc_state.firstChild.nodeValue = '검색중'
+				socket.emit('calc', android_id.value)
+			}
+
+			function format() 
+			{ 
+				var args = Array.prototype.slice.call (arguments, 1); 
+				return arguments[0].replace (/\{(\d+)\}/g, function (match, index) { return args[index]; }); 
+			}
+		</script>
+
+		<style>
+			.gap {
+				margin-left: 10px;
+				margin-right: 10px;
+			}
+
+			/* tr {
+				width: 100px;
+				height: 145px;
+				border: 1px solid;
+			} */
+
+			td {
+				width: 100px;
+				height: 145px;
+				border: 2px solid;
+				vertical-align: top;
+				box-sizing: border-box;
+				margin: 0px;
+				padding: 0px;
+			}
+
+			td.header {
+				text-align: center;
+				height: 30px;
+			}
+
+			table {
+				border-collapse: collapse;
+			}
+
+			h1 {
+				text-align: center;
+				width: 700px;
+				margin: 0px;
+			}
+
+			h1.margin {
+				margin-top: 50px;
+			}
+
+			line.noon {
+				border-color: rgba(0, 0, 255, 1);
+				position: relative;
+				top: 71px;
+				z-index: 0;
+			}	
+
+			line {
+				width: 100px;
+				border-top: 1px solid;
+				border-color: rgba(255, 0, 0, 0.2);
+				margin: 0px;
+				padding: 0px;
+				box-sizing: border-box;
+				position: absolute;
+				top: 0px;
+				display: block;
+				z-index: 1;
+			}
+
+			td > label {
+				position: absolute;
+				z-index: 2;
+				font-weight: bold;
+				font-size: 30;
+				pointer-events: none;
+			}
+		</style>
+
+	</head>
+
+	<body>
+		<div>
+			<input type="text" id="nick" placeholder="nick" style="width: 300px;">
+			<button id="button_find_nick">Find article</button>
+			<label id="search_state">대기</label>
+		</div>
+
+		<div>
+			<ul id="nick_result_list"></ul>
+		</div>
+
+		<div>
+			<input type="text" id="android_id" placeholder="android_id" style="width: 300px;">
+			<button id="button_calc">Get schedule</button>
+			<label id="calc_state">대기</label>
+		</div>
+
+
+		<p></p>
+		<p></p>
+		<p></p>
+
+		<div id="calendar_placeholder"></div>
+
+	</body>
+</html>
