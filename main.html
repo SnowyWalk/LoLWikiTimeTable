@@ -61,11 +61,29 @@
 				var current_table = null
 				var last_data = null
 				var last_client_top = 0
+				var monthly_count = 0
+				var last_monthly_count_label = null
+				var daily_count = 0
+				var last_daily_count_label = null
+				var last_table = null
+				var last_td = null
 
 				for(var e of data)
 				{
 					if(current_year != e.year || current_month != e.month)
 					{	
+						if(current_table)
+							last_monthly_count_label.firstChild.nodeValue = monthly_count
+
+						monthly_count = 0
+
+						if(last_td && daily_count)
+						{
+							console.log('지난달의 마지막 날인', last_td.getAttribute('day'), '일은', daily_count, '개였다.', last_td)
+							last_td.querySelector('label').setAttribute('day_count', daily_count)
+							daily_count = 0
+						}
+
 						var h1_y = document.createElement('h1')
 						h1_y.appendChild(document.createTextNode(e.year))
 						h1_y.classList.add('margin')
@@ -76,6 +94,10 @@
 						var table = document.createElement('table')
 						var tr = document.createElement('tr')
 
+						var monthly_count_label = document.createElement('label')
+						monthly_count_label.appendChild(document.createTextNode(''))
+						last_monthly_count_label = monthly_count_label
+						
 						// 요일 헤더
 						for(var i=0; i<7; ++i)
 						{
@@ -96,6 +118,7 @@
 							for(var j=0; j<7; ++j)
 							{
 								var td = document.createElement('td')
+								td.setAttribute('day', 0)
 								var label = document.createElement('label')
 								label.appendChild(document.createTextNode(''))
 								td.appendChild(label)
@@ -110,6 +133,7 @@
 						calendar_placeholder.appendChild(h1_y)
 						calendar_placeholder.appendChild(h1_m)
 						calendar_placeholder.appendChild(table)
+						calendar_placeholder.appendChild(monthly_count_label)
 						table.createCaption()
 						table.caption.textContent = '01234568789-:*'
 						table.setAttribute('year', e.year)
@@ -127,11 +151,13 @@
 							dest_element.querySelector('label').firstChild.nodeValue = i + 1
 						}
 
+						last_table = current_table
 						current_table = table
 					}
 
 					// 라인 긋기
 					var dest_element = current_table.querySelector(format('[day="{0}"]', eval(e.day)))
+					last_td = dest_element
 					var dest_level = getLineLevel(eval(e.hh), eval(e.mm))
 					var client_top = last_client_top
 					// 추가된 이전 라인과 같은 높이면 진하게만 하기
@@ -161,11 +187,33 @@
 						dest_element.appendChild(line)
 					}
 
+					if(last_data && (last_data.year != e.year || last_data.month != e.month || last_data.day != e.day))
+					{
+						var last_element = (last_data.year == e.year && last_data.month == e.month) ?
+							current_table.querySelector(format('[day="{0}"]', eval(last_data.day))) :
+							last_table.querySelector(format('[day="{0}"]', eval(last_data.day)))
+						console.log(last_data, e, last_element, '인', last_data.day, '일에', daily_count, '개')
+						last_element.querySelector('label').setAttribute('day_count', daily_count)
+						daily_count = 0
+					}
+
+					++daily_count
+					++monthly_count
+
 					current_year = e.year 
 					current_month = e.month
 					current_day = e.day
 					last_data = e
 					last_client_top = client_top
+				}
+
+				if(current_table)
+					last_monthly_count_label.firstChild.nodeValue = monthly_count
+
+				if(last_td && daily_count)
+				{
+					console.log('마지막날인', last_td.getAttribute('day'), '일은', daily_count, '개였다.', last_td)
+					last_td.querySelector('label').setAttribute('day_count', daily_count)
 				}
 
 				calc_state.firstChild.nodeValue = '완료'
@@ -283,7 +331,15 @@
 				position: relative;
 				top: 71px;
 				z-index: 0;
-			}	
+			}
+
+			td[day="0"] {
+				background-color: gray;
+			}
+
+			td[day="0"] line.noon {
+				opacity: 0;
+			}
 
 			line {
 				width: 100px;
@@ -304,6 +360,11 @@
 				font-weight: bold;
 				font-size: 30;
 				pointer-events: none;
+			}
+
+			td > label:not([day="0"])::after {
+				content: attr(day_count);
+				font-size: 12px;
 			}
 		</style>
 
