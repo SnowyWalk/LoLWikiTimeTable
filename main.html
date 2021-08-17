@@ -77,13 +77,6 @@
 
 						monthly_count = 0
 
-						if(last_td && daily_count)
-						{
-							console.log('지난달의 마지막 날인', last_td.getAttribute('day'), '일은', daily_count, '개였다.', last_td)
-							last_td.querySelector('label').setAttribute('day_count', daily_count)
-							daily_count = 0
-						}
-
 						var h1_y = document.createElement('h1')
 						h1_y.appendChild(document.createTextNode(e.year))
 						h1_y.classList.add('margin')
@@ -192,7 +185,6 @@
 						var last_element = (last_data.year == e.year && last_data.month == e.month) ?
 							current_table.querySelector(format('[day="{0}"]', eval(last_data.day))) :
 							last_table.querySelector(format('[day="{0}"]', eval(last_data.day)))
-						console.log(last_data, e, last_element, '인', last_data.day, '일에', daily_count, '개')
 						last_element.querySelector('label').setAttribute('day_count', daily_count)
 						daily_count = 0
 					}
@@ -211,10 +203,7 @@
 					last_monthly_count_label.firstChild.nodeValue = monthly_count
 
 				if(last_td && daily_count)
-				{
-					console.log('마지막날인', last_td.getAttribute('day'), '일은', daily_count, '개였다.', last_td)
 					last_td.querySelector('label').setAttribute('day_count', daily_count)
-				}
 
 				calc_state.firstChild.nodeValue = '완료'
 			})
